@@ -56,7 +56,7 @@ class RenameMethodsBase(type):
     See #15363 for more details.
     """
 
-    renamed_methods: ClassVar[Tuple(str, str, Warning)] = ()
+    renamed_methods: ClassVar[Tuple[Tuple[str, str, Warning]]] = ()
 
     def __new__(cls, name, bases, attrs):
         # __new__ 是 元类对新定义的子类进行修改时常用实现的方法
