@@ -19,7 +19,7 @@ from django.test.runner import default_test_processes
 from django.test.selenium import SeleniumTestCaseBase
 from django.test.utils import get_runner
 from django.utils.deprecation import (
-    RemovedInDjango31Warning, RemovedInDjango40Warning,
+    RemovedInDjango31Warning, RemovedInDjango30Warning,
 )
 from django.utils.log import DEFAULT_LOGGING
 
@@ -29,14 +29,18 @@ except ImportError:
     pass
 else:
     # Ignore informational warnings from QuerySet.explain().
+    # 忽略 MySQLdb 中 QuerySet.explain() 调用产生的信息类警告信息。
     warnings.filterwarnings('ignore', r'\(1003, *', category=MySQLdb.Warning)
 
 # Make deprecation warnings errors to ensure no usage of deprecated features.
-warnings.simplefilter("error", RemovedInDjango40Warning)
+# 将 Django 3.0+ 版本将移除的特性的警告转为错误抛出，以勉使用了过期的特性。
+warnings.simplefilter("error", RemovedInDjango30Warning)
 warnings.simplefilter('error', RemovedInDjango31Warning)
 # Make runtime warning errors to ensure no usage of error prone patterns.
+# 将 Python 中的运行时特性警告作为错误抛出。比如计算的溢出会当作 RuntimeWarning 抛出.
 warnings.simplefilter("error", RuntimeWarning)
 # Ignore known warnings in test dependencies.
+# 忽略测试依赖中的已知警告。
 warnings.filterwarnings("ignore", "'U' mode is deprecated", DeprecationWarning, module='docutils.io')
 
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
