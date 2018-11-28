@@ -1,0 +1,5 @@
+{
+  "python.pythonPath": "/Users/banxi/.pyenv/versions/tango/bin/python",
+  "python.linting.enabled": false,
+  "python.formatting.provider": "black"
+}
