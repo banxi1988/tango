@@ -1,13 +1,18 @@
+from __future__ import annotations
 import functools
 import sys
 import threading
 import warnings
 from collections import Counter, defaultdict
 from functools import partial
+from typing import Dict, TYPE_CHECKING, Type, DefaultDict, List, Tuple, Iterable, Optional, Callable
 
 from django.core.exceptions import AppRegistryNotReady, ImproperlyConfigured
 
 from .config import AppConfig
+
+if TYPE_CHECKING:
+    from django.db.models import Model
 
 
 class Apps:
@@ -16,49 +21,50 @@ class Apps:
 
     It also keeps track of models, e.g. to provide reverse relations.
     """
+    # Mapping of labels to AppConfig instances for installed apps.
+    app_configs:Dict[str,AppConfig] = {}
 
-    def __init__(self, installed_apps=()):
+    # Mapping of app labels => model names => model classes. Every time a
+    # model is imported, ModelBase.__new__ calls apps.register_model which
+    # creates an entry in all_models. All imported models are registered,
+    # regardless of whether they're defined in an installed application
+    # and whether the registry has been populated. Since it isn't possible
+    # to reimport a module safely (it could reexecute initialization code)
+    # all_models is never overridden or reset.
+    all_models:DefaultDict[str,Dict[str,Type[Model]]] = defaultdict(dict)
+
+    # Stack of app_configs. Used to store the current state in
+    # set_available_apps and set_installed_apps.
+    stored_app_configs:List[AppConfig] = []
+    # Whether the registry is populated.
+    apps_ready:bool = False
+    models_ready:bool = False
+    ready:bool = False
+    # For the autoreloader.
+    ready_event = threading.Event()
+    # Lock for thread-safe population.
+    _lock = threading.RLock()
+    loading = False
+    # Maps ("app_label", "modelname") tuples to lists of functions to be
+    # called when the corresponding model is ready. Used by this class's
+    # `lazy_model_operation()` and `do_pending_operations()` methods.
+    _pending_operations:DefaultDict[str, List] = defaultdict(list)
+
+    def __init__(self, installed_apps:Optional[Iterable[str]]=()):
         # installed_apps is set to None when creating the master registry
         # because it cannot be populated at that point. Other registries must
         # provide a list of installed apps and are populated immediately.
         if installed_apps is None and hasattr(sys.modules[__name__], 'apps'):
             raise RuntimeError("You must supply an installed_apps argument.")
 
-        # Mapping of app labels => model names => model classes. Every time a
-        # model is imported, ModelBase.__new__ calls apps.register_model which
-        # creates an entry in all_models. All imported models are registered,
-        # regardless of whether they're defined in an installed application
-        # and whether the registry has been populated. Since it isn't possible
-        # to reimport a module safely (it could reexecute initialization code)
-        # all_models is never overridden or reset.
-        self.all_models = defaultdict(dict)
 
-        # Mapping of labels to AppConfig instances for installed apps.
-        self.app_configs = {}
 
-        # Stack of app_configs. Used to store the current state in
-        # set_available_apps and set_installed_apps.
-        self.stored_app_configs = []
-
-        # Whether the registry is populated.
-        self.apps_ready = self.models_ready = self.ready = False
-        # For the autoreloader.
-        self.ready_event = threading.Event()
-
-        # Lock for thread-safe population.
-        self._lock = threading.RLock()
-        self.loading = False
-
-        # Maps ("app_label", "modelname") tuples to lists of functions to be
-        # called when the corresponding model is ready. Used by this class's
-        # `lazy_model_operation()` and `do_pending_operations()` methods.
-        self._pending_operations = defaultdict(list)
 
         # Populate apps and models, unless it's the master registry.
         if installed_apps is not None:
             self.populate(installed_apps)
 
-    def populate(self, installed_apps=None):
+    def populate(self, installed_apps:Optional[Iterable[str]]=None):
         """
         Load application configurations and models.
 
@@ -139,12 +145,12 @@ class Apps:
         if not self.models_ready:
             raise AppRegistryNotReady("Models aren't loaded yet.")
 
-    def get_app_configs(self):
+    def get_app_configs(self) -> Iterable[AppConfig]:
         """Import applications and return an iterable of app configs."""
         self.check_apps_ready()
         return self.app_configs.values()
 
-    def get_app_config(self, app_label):
+    def get_app_config(self, app_label:str) -> AppConfig:
         """
         Import applications and returns an app config for the given label.
 
@@ -163,7 +169,7 @@ class Apps:
 
     # This method is performance-critical at least for Django's test suite.
     @functools.lru_cache(maxsize=None)
-    def get_models(self, include_auto_created=False, include_swapped=False):
+    def get_models(self, include_auto_created=False, include_swapped=False)->List[Type[Model]]:
         """
         Return a list of all installed models.
 
@@ -182,7 +188,7 @@ class Apps:
             result.extend(app_config.get_models(include_auto_created, include_swapped))
         return result
 
-    def get_model(self, app_label, model_name=None, require_ready=True):
+    def get_model(self, app_label:str, model_name:Optional[str]=None, require_ready=True):
         """
         Return the model matching the given app_label and model_name.
 
@@ -209,7 +215,7 @@ class Apps:
 
         return app_config.get_model(model_name, require_ready=require_ready)
 
-    def register_model(self, app_label, model):
+    def register_model(self, app_label:str, model:Type[Model]):
         # Since this method is called when models are imported, it cannot
         # perform imports because of the risk of import loops. It mustn't
         # call get_app_config().
@@ -231,7 +237,7 @@ class Apps:
         self.do_pending_operations(model)
         self.clear_cache()
 
-    def is_installed(self, app_name):
+    def is_installed(self, app_name:str):
         """
         Check whether an application with this name exists in the registry.
 
@@ -240,7 +246,7 @@ class Apps:
         self.check_apps_ready()
         return any(ac.name == app_name for ac in self.app_configs.values())
 
-    def get_containing_app_config(self, object_name):
+    def get_containing_app_config(self, object_name:str) -> Optional[AppConfig]:
         """
         Look for an app config containing a given object.
 
@@ -259,7 +265,7 @@ class Apps:
         if candidates:
             return sorted(candidates, key=lambda ac: -len(ac.name))[0]
 
-    def get_registered_model(self, app_label, model_name):
+    def get_registered_model(self, app_label:str, model_name:str) -> Type[Model]:
         """
         Similar to get_model(), but doesn't require that an app exists with
         the given app_label.
@@ -274,7 +280,7 @@ class Apps:
         return model
 
     @functools.lru_cache(maxsize=None)
-    def get_swappable_settings_name(self, to_string):
+    def get_swappable_settings_name(self, to_string:str) -> Optional[str]:
         """
         For a given model string (e.g. "auth.User"), return the name of the
         corresponding settings name if it refers to a swappable model. If the
@@ -295,7 +301,7 @@ class Apps:
                 return model._meta.swappable
         return None
 
-    def set_available_apps(self, available):
+    def set_available_apps(self, available:Iterable[str]):
         """
         Restrict the set of installed apps used by get_app_config[s].
 
@@ -328,7 +334,7 @@ class Apps:
         self.app_configs = self.stored_app_configs.pop()
         self.clear_cache()
 
-    def set_installed_apps(self, installed):
+    def set_installed_apps(self, installed:Iterable[str]):
         """
         Enable a different set of installed apps for get_app_config[s].
 
@@ -375,7 +381,7 @@ class Apps:
                 for model in app_config.get_models(include_auto_created=True):
                     model._meta._expire_cache()
 
-    def lazy_model_operation(self, function, *model_keys):
+    def lazy_model_operation(self, function:Callable, *model_keys:Tuple[str,str]):
         """
         Take a function and a number of ("app_label", "modelname") tuples, and
         when all the corresponding models have been imported and registered,
@@ -414,7 +420,7 @@ class Apps:
             else:
                 apply_next_model(model_class)
 
-    def do_pending_operations(self, model):
+    def do_pending_operations(self, model:Type[Model]):
         """
         Take a newly-prepared model and pass it to each function waiting for
         it. This is called at the very end of Apps.register_model().

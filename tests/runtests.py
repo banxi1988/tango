@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import warnings
+from typing import List
 
 import django
 from django.apps import apps
@@ -112,7 +113,7 @@ def get_test_modules():
     return modules
 
 
-def get_installed():
+def get_installed() -> List[str]:
     return [app_config.name for app_config in apps.get_app_configs()]
 
 

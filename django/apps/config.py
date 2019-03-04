@@ -1,57 +1,74 @@
+from __future__ import annotations
 import os
 from importlib import import_module
+from types import ModuleType
+from typing import Optional, ClassVar, Dict, Type, TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    from django.apps.registry import Apps
+    from django.db.models import Model
 
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import module_has_submodule
 
-MODELS_MODULE_NAME = 'models'
+MODELS_MODULE_NAME :str = 'models'
 
 
 class AppConfig:
     """Class representing a Django application and its configuration."""
+    # Full Python path to the application e.g. 'django.contrib.admin'.
+    name:str
+    # Reference to the Apps registry that holds this AppConfig. Set by the
+    # registry when it registers the AppConfig instance.
+    apps:Optional[Apps] = None
 
-    def __init__(self, app_name, app_module):
-        # Full Python path to the application e.g. 'django.contrib.admin'.
+    # Last component of the Python path to the application e.g. 'admin'.
+    # This value must be unique across a Django project.
+    label:ClassVar[Optional[str]]
+    #TODO label 如果没有类级别属性，则会有实例属性。但是暂时无法声明这种情况
+
+    # Human-readable name for the application e.g. "Admin".
+    verbose_name:ClassVar[Optional[str]]
+
+    # Filesystem path to the application directory e.g.
+    # '/path/to/django/contrib/admin'.
+    path:ClassVar[Optional[str]]
+
+    # Mapping of lowercase model names to model classes. Initially set to
+    # None to prevent accidental access before import_models() runs.
+    models:Optional[Dict[str,Type[Model]]] = None
+
+    # Root module for the application e.g. <module 'django.contrib.admin'
+    # from 'django/contrib/admin/__init__.py'>.
+    module:ModuleType
+
+    # Module containing models e.g. <module 'django.contrib.admin.models'
+    # from 'django/contrib/admin/models.py'>. Set by import_models().
+    # None if the application doesn't have a models module.
+    models_module: Optional[ModuleType] = None
+
+    def __init__(self, app_name:str, app_module:ModuleType):
         self.name = app_name
-
-        # Root module for the application e.g. <module 'django.contrib.admin'
-        # from 'django/contrib/admin/__init__.py'>.
         self.module = app_module
-
-        # Reference to the Apps registry that holds this AppConfig. Set by the
-        # registry when it registers the AppConfig instance.
-        self.apps = None
 
         # The following attributes could be defined at the class level in a
         # subclass, hence the test-and-set pattern.
 
-        # Last component of the Python path to the application e.g. 'admin'.
-        # This value must be unique across a Django project.
         if not hasattr(self, 'label'):
             self.label = app_name.rpartition(".")[2]
 
-        # Human-readable name for the application e.g. "Admin".
         if not hasattr(self, 'verbose_name'):
             self.verbose_name = self.label.title()
 
-        # Filesystem path to the application directory e.g.
-        # '/path/to/django/contrib/admin'.
         if not hasattr(self, 'path'):
             self.path = self._path_from_module(app_module)
 
-        # Module containing models e.g. <module 'django.contrib.admin.models'
-        # from 'django/contrib/admin/models.py'>. Set by import_models().
-        # None if the application doesn't have a models module.
-        self.models_module = None
 
-        # Mapping of lowercase model names to model classes. Initially set to
-        # None to prevent accidental access before import_models() runs.
-        self.models = None
 
     def __repr__(self):
         return '<%s: %s>' % (self.__class__.__name__, self.label)
 
-    def _path_from_module(self, module):
+    def _path_from_module(self, module:ModuleType):
         """Attempt to determine app's filesystem path from its module."""
         # See #21874 for extended discussion of the behavior of this method in
         # various cases.
@@ -79,7 +96,7 @@ class AppConfig:
         return paths[0]
 
     @classmethod
-    def create(cls, entry):
+    def create(cls, entry:str) -> AppConfig:
         """
         Factory that creates an app config from an entry in INSTALLED_APPS.
         """
@@ -164,7 +181,7 @@ class AppConfig:
         # Entry is a path to an app config class.
         return cls(app_name, app_module)
 
-    def get_model(self, model_name, require_ready=True):
+    def get_model(self, model_name:str, require_ready:bool=True) -> Type[Model]:
         """
         Return the model with the given case-insensitive model_name.
 
@@ -180,7 +197,7 @@ class AppConfig:
             raise LookupError(
                 "App '%s' doesn't have a '%s' model." % (self.label, model_name))
 
-    def get_models(self, include_auto_created=False, include_swapped=False):
+    def get_models(self, include_auto_created:bool=False, include_swapped:bool=False)->Iterable[Type[Model]]:
         """
         Return an iterable of models.
 
