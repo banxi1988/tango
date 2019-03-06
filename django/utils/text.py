@@ -3,13 +3,14 @@ import re
 import unicodedata
 from gzip import GzipFile
 from io import BytesIO
+from typing import AnyStr, Optional, Collection, Sequence, Match
 
 from django.utils.functional import SimpleLazyObject, keep_lazy_text, lazy
 from django.utils.translation import gettext as _, gettext_lazy, pgettext
 
 
 @keep_lazy_text
-def capfirst(x):
+def capfirst(x:AnyStr):
     """Capitalize the first letter of a string."""
     return x and str(x)[0].upper() + str(x)[1:]
 
@@ -23,7 +24,7 @@ re_camel_case = re.compile(r'(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))')
 
 
 @keep_lazy_text
-def wrap(text, width):
+def wrap(text:str, width:int):
     """
     A word-wrap function that preserves existing line breaks. Expects that
     existing line breaks are posix newlines.
@@ -57,10 +58,10 @@ class Truncator(SimpleLazyObject):
     """
     An object used to truncate text, either by characters or words.
     """
-    def __init__(self, text):
+    def __init__(self, text:AnyStr):
         super().__init__(lambda: str(text))
 
-    def add_truncation_text(self, text, truncate=None):
+    def add_truncation_text(self, text:AnyStr, truncate:Optional[str]=None):
         if truncate is None:
             truncate = pgettext(
                 'String to return when truncating text',
@@ -75,7 +76,7 @@ class Truncator(SimpleLazyObject):
             return text
         return '%s%s' % (text, truncate)
 
-    def chars(self, num, truncate=None, html=False):
+    def chars(self, num:int, truncate:Optional[str]=None, html:bool=False):
         """
         Return the text truncated to be no longer than the specified number
         of characters.
@@ -98,7 +99,7 @@ class Truncator(SimpleLazyObject):
             return self._truncate_html(length, truncate, text, truncate_len, False)
         return self._text_chars(length, truncate, text, truncate_len)
 
-    def _text_chars(self, length, truncate, text, truncate_len):
+    def _text_chars(self, length:int, truncate:str, text:str, truncate_len:int):
         """Truncate a string after a certain number of chars."""
         s_len = 0
         end_index = None
@@ -118,7 +119,7 @@ class Truncator(SimpleLazyObject):
         # Return the original string since no truncation was necessary
         return text
 
-    def words(self, num, truncate=None, html=False):
+    def words(self, num:int, truncate:Optional[str]=None, html:bool=False):
         """
         Truncate a string after a certain number of words. `truncate` specifies
         what should be used to notify that the string has been truncated,
@@ -130,7 +131,7 @@ class Truncator(SimpleLazyObject):
             return self._truncate_html(length, truncate, self._wrapped, length, True)
         return self._text_words(length, truncate)
 
-    def _text_words(self, length, truncate):
+    def _text_words(self, length:int, truncate:str):
         """
         Truncate a string after a certain number of words.
 
@@ -142,7 +143,7 @@ class Truncator(SimpleLazyObject):
             return self.add_truncation_text(' '.join(words), truncate)
         return ' '.join(words)
 
-    def _truncate_html(self, length, truncate, text, truncate_len, words):
+    def _truncate_html(self, length:int, truncate:str, text:str, truncate_len:int, words:bool):
         """
         Truncate HTML to a certain number of chars (not counting tags and
         comments), or, if words is True, then to a certain number of words.
@@ -216,7 +217,7 @@ class Truncator(SimpleLazyObject):
 
 
 @keep_lazy_text
-def get_valid_filename(s):
+def get_valid_filename(s:AnyStr):
     """
     Return the given string converted to a string that can be used for a clean
     filename. Remove leading and trailing spaces; convert other spaces to
@@ -230,7 +231,7 @@ def get_valid_filename(s):
 
 
 @keep_lazy_text
-def get_text_list(list_, last_word=gettext_lazy('or')):
+def get_text_list(list_:Collection, last_word=gettext_lazy('or')):
     """
     >>> get_text_list(['a', 'b', 'c', 'd'])
     'a, b, c or d'
@@ -254,13 +255,13 @@ def get_text_list(list_, last_word=gettext_lazy('or')):
 
 
 @keep_lazy_text
-def normalize_newlines(text):
+def normalize_newlines(text:AnyStr):
     """Normalize CRLF and CR newlines to just LF."""
     return re_newlines.sub('\n', str(text))
 
 
 @keep_lazy_text
-def phone2numeric(phone):
+def phone2numeric(phone:str):
     """Convert a phone number with letters into its numeric equivalent."""
     char2number = {
         'a': '2', 'b': '2', 'c': '2', 'd': '3', 'e': '3', 'f': '3', 'g': '4',
@@ -273,7 +274,7 @@ def phone2numeric(phone):
 
 # From http://www.xhaus.com/alan/python/httpcomp.html#gzip
 # Used with permission.
-def compress_string(s):
+def compress_string(s:AnyStr):
     zbuf = BytesIO()
     with GzipFile(mode='wb', compresslevel=6, fileobj=zbuf, mtime=0) as zfile:
         zfile.write(s)
@@ -289,7 +290,7 @@ class StreamingBuffer(BytesIO):
 
 
 # Like compress_string, but for iterators of strings.
-def compress_sequence(sequence):
+def compress_sequence(sequence:Sequence[AnyStr]):
     buf = StreamingBuffer()
     with GzipFile(mode='wb', compresslevel=6, fileobj=buf, mtime=0) as zfile:
         # Output headers...
@@ -315,7 +316,7 @@ smart_split_re = re.compile(r"""
 """, re.VERBOSE)
 
 
-def smart_split(text):
+def smart_split(text:AnyStr):
     r"""
     Generator that splits a string by spaces, leaving quoted phrases together.
     Supports both single and double quotes, and supports escaping quotes with
@@ -334,7 +335,7 @@ def smart_split(text):
         yield bit.group(0)
 
 
-def _replace_entity(match):
+def _replace_entity(match:Match):
     text = match.group(1)
     if text[0] == '#':
         text = text[1:]
@@ -357,12 +358,12 @@ _entity_re = re.compile(r"&(#?[xX]?(?:[0-9a-fA-F]+|\w{1,8}));")
 
 
 @keep_lazy_text
-def unescape_entities(text):
+def unescape_entities(text:AnyStr):
     return _entity_re.sub(_replace_entity, str(text))
 
 
 @keep_lazy_text
-def unescape_string_literal(s):
+def unescape_string_literal(s:str):
     r"""
     Convert quoted string literals to unquoted strings with escaped quotes and
     backslashes unquoted::
@@ -383,7 +384,7 @@ def unescape_string_literal(s):
 
 
 @keep_lazy_text
-def slugify(value, allow_unicode=False):
+def slugify(value:AnyStr, allow_unicode:bool=False):
     """
     Convert to ASCII if 'allow_unicode' is False. Convert spaces to hyphens.
     Remove characters that aren't alphanumerics, underscores, or hyphens.
@@ -398,14 +399,14 @@ def slugify(value, allow_unicode=False):
     return re.sub(r'[-\s]+', '-', value)
 
 
-def camel_case_to_spaces(value):
+def camel_case_to_spaces(value:str):
     """
     Split CamelCase and convert to lowercase. Strip surrounding whitespace.
     """
     return re_camel_case.sub(r' \1', value).strip().lower()
 
 
-def _format_lazy(format_string, *args, **kwargs):
+def _format_lazy(format_string:str, *args, **kwargs):
     """
     Apply str.format() on 'format_string' where format_string, args,
     and/or kwargs might be lazy.
