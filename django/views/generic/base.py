@@ -1,12 +1,15 @@
 import logging
 from functools import update_wrapper
+from typing import ClassVar, Optional, List
 
 from django.core.exceptions import ImproperlyConfigured
+from django.core.handlers.wsgi import WSGIRequest
 from django.http import (
     HttpResponse, HttpResponseGone, HttpResponseNotAllowed,
     HttpResponsePermanentRedirect, HttpResponseRedirect,
 )
 from django.template.response import TemplateResponse
+from django.typing import OptStr
 from django.urls import reverse
 from django.utils.decorators import classonlymethod
 
@@ -18,7 +21,7 @@ class ContextMixin:
     A default context mixin that passes the keyword arguments received by
     get_context_data() as the template context.
     """
-    extra_context = None
+    extra_context:ClassVar[dict] = None
 
     def get_context_data(self, **kwargs):
         kwargs.setdefault('view', self)
@@ -58,7 +61,7 @@ class View:
                                 "only accepts arguments that are already "
                                 "attributes of the class." % (cls.__name__, key))
 
-        def view(request, *args, **kwargs):
+        def view(request:WSGIRequest, *args, **kwargs):
             self = cls(**initkwargs)
             if hasattr(self, 'get') and not hasattr(self, 'head'):
                 self.head = self.get
@@ -80,13 +83,13 @@ class View:
         update_wrapper(view, cls.dispatch, assigned=())
         return view
 
-    def setup(self, request, *args, **kwargs):
+    def setup(self, request:WSGIRequest, *args, **kwargs):
         """Initialize attributes shared by all view methods."""
         self.request = request
         self.args = args
         self.kwargs = kwargs
 
-    def dispatch(self, request, *args, **kwargs):
+    def dispatch(self, request:WSGIRequest, *args, **kwargs):
         # Try to dispatch to the right method; if a method doesn't exist,
         # defer to the error handler. Also defer to the error handler if the
         # request method isn't on the approved list.
@@ -96,14 +99,14 @@ class View:
             handler = self.http_method_not_allowed
         return handler(request, *args, **kwargs)
 
-    def http_method_not_allowed(self, request, *args, **kwargs):
+    def http_method_not_allowed(self, request:WSGIRequest, *args, **kwargs):
         logger.warning(
             'Method Not Allowed (%s): %s', request.method, request.path,
             extra={'status_code': 405, 'request': request}
         )
         return HttpResponseNotAllowed(self._allowed_methods())
 
-    def options(self, request, *args, **kwargs):
+    def options(self, request:WSGIRequest, *args, **kwargs):
         """Handle responding to requests for the OPTIONS HTTP verb."""
         response = HttpResponse()
         response['Allow'] = ', '.join(self._allowed_methods())
@@ -116,12 +119,12 @@ class View:
 
 class TemplateResponseMixin:
     """A mixin that can be used to render a template."""
-    template_name = None
-    template_engine = None
+    template_name :ClassVar[OptStr] = None
+    template_engine : ClassVar[OptStr] = None
     response_class = TemplateResponse
-    content_type = None
+    content_type :ClassVar[OptStr] = None
 
-    def render_to_response(self, context, **response_kwargs):
+    def render_to_response(self, context:dict, **response_kwargs):
         """
         Return a response, using the `response_class` for this view, with a
         template rendered with the given context.
@@ -137,7 +140,7 @@ class TemplateResponseMixin:
             **response_kwargs
         )
 
-    def get_template_names(self):
+    def get_template_names(self) -> List[str]:
         """
         Return a list of template names to be used for the request. Must return
         a list. May not be called if render_to_response() is overridden.
@@ -154,17 +157,17 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
     """
     Render a template. Pass keyword arguments from the URLconf to the context.
     """
-    def get(self, request, *args, **kwargs):
+    def get(self, request:WSGIRequest, *args, **kwargs):
         context = self.get_context_data(**kwargs)
         return self.render_to_response(context)
 
 
 class RedirectView(View):
     """Provide a redirect on any GET request."""
-    permanent = False
-    url = None
-    pattern_name = None
-    query_string = False
+    permanent:ClassVar[bool] = False
+    url: ClassVar[OptStr] = None
+    pattern_name:ClassVar[OptStr]  = None
+    query_string: ClassVar[bool] = False
 
     def get_redirect_url(self, *args, **kwargs):
         """
@@ -184,7 +187,7 @@ class RedirectView(View):
             url = "%s?%s" % (url, args)
         return url
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request:WSGIRequest, *args, **kwargs):
         url = self.get_redirect_url(*args, **kwargs)
         if url:
             if self.permanent:
@@ -198,20 +201,20 @@ class RedirectView(View):
             )
             return HttpResponseGone()
 
-    def head(self, request, *args, **kwargs):
+    def head(self, request:WSGIRequest, *args, **kwargs):
         return self.get(request, *args, **kwargs)
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request:WSGIRequest, *args, **kwargs):
         return self.get(request, *args, **kwargs)
 
-    def options(self, request, *args, **kwargs):
+    def options(self, request:WSGIRequest, *args, **kwargs):
         return self.get(request, *args, **kwargs)
 
-    def delete(self, request, *args, **kwargs):
+    def delete(self, request:WSGIRequest, *args, **kwargs):
         return self.get(request, *args, **kwargs)
 
-    def put(self, request, *args, **kwargs):
+    def put(self, request:WSGIRequest, *args, **kwargs):
         return self.get(request, *args, **kwargs)
 
-    def patch(self, request, *args, **kwargs):
+    def patch(self, request:WSGIRequest, *args, **kwargs):
         return self.get(request, *args, **kwargs)

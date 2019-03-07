@@ -1,8 +1,10 @@
+from typing import Optional
+
 from . import engines
 from .exceptions import TemplateDoesNotExist
 
 
-def get_template(template_name, using=None):
+def get_template(template_name, using:Optional[str]=None):
     """
     Load and return a template for the given name.
 
@@ -62,5 +64,5 @@ def render_to_string(template_name, context=None, request=None, using=None):
     return template.render(context, request)
 
 
-def _engine_list(using=None):
+def _engine_list(using:Optional[str]=None):
     return engines.all() if using is None else [engines[using]]

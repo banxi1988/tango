@@ -1,6 +1,10 @@
+from typing import ClassVar, Optional, Collection
+
 from django.core.exceptions import ImproperlyConfigured
-from django.forms import models as model_forms
+from django.core.handlers.wsgi import WSGIRequest
+from django.forms import models as model_forms, Form
 from django.http import HttpResponseRedirect
+from django.typing import OptStr, OptType, OptStrs
 from django.views.generic.base import ContextMixin, TemplateResponseMixin, View
 from django.views.generic.detail import (
     BaseDetailView, SingleObjectMixin, SingleObjectTemplateResponseMixin,
@@ -9,24 +13,24 @@ from django.views.generic.detail import (
 
 class FormMixin(ContextMixin):
     """Provide a way to show and handle a form in a request."""
-    initial = {}
-    form_class = None
-    success_url = None
-    prefix = None
+    initial: ClassVar[dict] = {}
+    form_class :ClassVar[type] = None
+    success_url: ClassVar[OptStr] = None
+    prefix: ClassVar[OptStr] = None
 
-    def get_initial(self):
+    def get_initial(self) -> dict:
         """Return the initial data to use for forms on this view."""
         return self.initial.copy()
 
-    def get_prefix(self):
+    def get_prefix(self) -> str:
         """Return the prefix to use for forms."""
         return self.prefix
 
-    def get_form_class(self):
+    def get_form_class(self) -> type:
         """Return the form class to use."""
         return self.form_class
 
-    def get_form(self, form_class=None):
+    def get_form(self, form_class:OptType=None) -> Form:
         """Return an instance of the form to be used in this view."""
         if form_class is None:
             form_class = self.get_form_class()
@@ -46,17 +50,17 @@ class FormMixin(ContextMixin):
             })
         return kwargs
 
-    def get_success_url(self):
+    def get_success_url(self) -> str:
         """Return the URL to redirect to after processing a valid form."""
         if not self.success_url:
             raise ImproperlyConfigured("No URL to redirect to. Provide a success_url.")
         return str(self.success_url)  # success_url may be lazy
 
-    def form_valid(self, form):
+    def form_valid(self, form:Form):
         """If the form is valid, redirect to the supplied URL."""
         return HttpResponseRedirect(self.get_success_url())
 
-    def form_invalid(self, form):
+    def form_invalid(self, form:Form):
         """If the form is invalid, render the invalid form."""
         return self.render_to_response(self.get_context_data(form=form))
 
@@ -69,7 +73,7 @@ class FormMixin(ContextMixin):
 
 class ModelFormMixin(FormMixin, SingleObjectMixin):
     """Provide a way to show and handle a ModelForm in a request."""
-    fields = None
+    fields: ClassVar[OptStrs] = None
 
     def get_form_class(self):
         """Return the form class to use in this view."""
@@ -107,7 +111,7 @@ class ModelFormMixin(FormMixin, SingleObjectMixin):
             kwargs.update({'instance': self.object})
         return kwargs
 
-    def get_success_url(self):
+    def get_success_url(self) -> str:
         """Return the URL to redirect to after processing a valid form."""
         if self.success_url:
             url = self.success_url.format(**self.object.__dict__)
@@ -128,11 +132,11 @@ class ModelFormMixin(FormMixin, SingleObjectMixin):
 
 class ProcessFormView(View):
     """Render a form on GET and processes it on POST."""
-    def get(self, request, *args, **kwargs):
+    def get(self, request:WSGIRequest, *args, **kwargs):
         """Handle GET requests: instantiate a blank version of the form."""
         return self.render_to_response(self.get_context_data())
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request:WSGIRequest, *args, **kwargs):
         """
         Handle POST requests: instantiate a form instance with the passed
         POST variables and then check if it's valid.
@@ -163,11 +167,11 @@ class BaseCreateView(ModelFormMixin, ProcessFormView):
 
     Using this base class requires subclassing to provide a response mixin.
     """
-    def get(self, request, *args, **kwargs):
+    def get(self, request:WSGIRequest, *args, **kwargs):
         self.object = None
         return super().get(request, *args, **kwargs)
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request:WSGIRequest, *args, **kwargs):
         self.object = None
         return super().post(request, *args, **kwargs)
 
@@ -176,7 +180,7 @@ class CreateView(SingleObjectTemplateResponseMixin, BaseCreateView):
     """
     View for creating a new object, with a response rendered by a template.
     """
-    template_name_suffix = '_form'
+    template_name_suffix:ClassVar[str] = '_form'
 
 
 class BaseUpdateView(ModelFormMixin, ProcessFormView):
@@ -185,25 +189,25 @@ class BaseUpdateView(ModelFormMixin, ProcessFormView):
 
     Using this base class requires subclassing to provide a response mixin.
     """
-    def get(self, request, *args, **kwargs):
+    def get(self, request:WSGIRequest, *args, **kwargs):
         self.object = self.get_object()
         return super().get(request, *args, **kwargs)
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request:WSGIRequest, *args, **kwargs):
         self.object = self.get_object()
         return super().post(request, *args, **kwargs)
 
 
 class UpdateView(SingleObjectTemplateResponseMixin, BaseUpdateView):
     """View for updating an object, with a response rendered by a template."""
-    template_name_suffix = '_form'
+    template_name_suffix :ClassVar[str] = '_form'
 
 
 class DeletionMixin:
     """Provide the ability to delete objects."""
     success_url = None
 
-    def delete(self, request, *args, **kwargs):
+    def delete(self, request:WSGIRequest, *args, **kwargs):
         """
         Call the delete() method on the fetched object and then redirect to the
         success URL.
@@ -214,7 +218,7 @@ class DeletionMixin:
         return HttpResponseRedirect(success_url)
 
     # Add support for browsers which only accept GET and POST for now.
-    def post(self, request, *args, **kwargs):
+    def post(self, request:WSGIRequest, *args, **kwargs):
         return self.delete(request, *args, **kwargs)
 
     def get_success_url(self):
@@ -238,4 +242,4 @@ class DeleteView(SingleObjectTemplateResponseMixin, BaseDeleteView):
     View for deleting an object retrieved with self.get_object(), with a
     response rendered by a template.
     """
-    template_name_suffix = '_confirm_delete'
+    template_name_suffix :ClassVar[str] = '_confirm_delete'

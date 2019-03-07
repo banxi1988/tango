@@ -4,6 +4,9 @@ and database field objects.
 """
 
 from itertools import chain
+from typing import Collection, Optional, Dict, Callable
+
+from django.db import models as db_models
 
 from django.core.exceptions import (
     NON_FIELD_ERRORS, FieldError, ImproperlyConfigured, ValidationError,
@@ -14,7 +17,8 @@ from django.forms.formsets import BaseFormSet, formset_factory
 from django.forms.utils import ErrorList
 from django.forms.widgets import (
     HiddenInput, MultipleHiddenInput, SelectMultiple,
-)
+    Widget)
+from django.typing import OptStrs, Opt, OptStrDict
 from django.utils.text import capfirst, get_text_list
 from django.utils.translation import gettext, gettext_lazy as _
 
@@ -468,10 +472,17 @@ class ModelForm(BaseModelForm, metaclass=ModelFormMetaclass):
     pass
 
 
-def modelform_factory(model, form=ModelForm, fields=None, exclude=None,
-                      formfield_callback=None, widgets=None, localized_fields=None,
-                      labels=None, help_texts=None, error_messages=None,
-                      field_classes=None):
+def modelform_factory(model,
+                      form=ModelForm,
+                      fields:OptStrs=None,
+                      exclude:OptStrs=None,
+                      formfield_callback:Opt[Callable[[db_models.Field],Field]]=None,
+                      widgets:Opt[Dict[str,Widget]]=None,
+                      localized_fields:OptStrs=None,
+                      labels:OptStrDict=None,
+                      help_texts:OptStrDict=None,
+                      error_messages:Opt[Dict[str,Dict[str,str]]]=None,
+                      field_classes:Opt[Dict[str,type]]=None):
     """
     Return a ModelForm containing form fields for the given model.
 

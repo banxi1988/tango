@@ -1,6 +1,11 @@
+from typing import ClassVar, Optional
+
 from django.core.exceptions import ImproperlyConfigured
+from django.core.handlers.wsgi import WSGIRequest
 from django.db import models
+from django.db.models import QuerySet
 from django.http import Http404
+from django.typing import OptStr
 from django.utils.translation import gettext as _
 from django.views.generic.base import ContextMixin, TemplateResponseMixin, View
 
@@ -9,15 +14,15 @@ class SingleObjectMixin(ContextMixin):
     """
     Provide the ability to retrieve a single object for further manipulation.
     """
-    model = None
-    queryset = None
-    slug_field = 'slug'
-    context_object_name = None
-    slug_url_kwarg = 'slug'
-    pk_url_kwarg = 'pk'
-    query_pk_and_slug = False
+    model :ClassVar[Optional[type]]= None
+    queryset:ClassVar[Optional[QuerySet]] = None
+    slug_field: ClassVar[str] = 'slug'
+    context_object_name:ClassVar[OptStr] = None
+    slug_url_kwarg: ClassVar[str] = 'slug'
+    pk_url_kwarg: ClassVar[str] = 'pk'
+    query_pk_and_slug:ClassVar[bool] = False
 
-    def get_object(self, queryset=None):
+    def get_object(self, queryset:Optional[QuerySet]=None):
         """
         Return the object the view is displaying.
 
@@ -102,15 +107,15 @@ class SingleObjectMixin(ContextMixin):
 
 class BaseDetailView(SingleObjectMixin, View):
     """A base view for displaying a single object."""
-    def get(self, request, *args, **kwargs):
+    def get(self, request:WSGIRequest, *args, **kwargs):
         self.object = self.get_object()
         context = self.get_context_data(object=self.object)
         return self.render_to_response(context)
 
 
 class SingleObjectTemplateResponseMixin(TemplateResponseMixin):
-    template_name_field = None
-    template_name_suffix = '_detail'
+    template_name_field:ClassVar[OptStr] = None
+    template_name_suffix :ClassVar[str] = '_detail'
 
     def get_template_names(self):
         """

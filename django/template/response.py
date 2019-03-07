@@ -1,4 +1,10 @@
+from typing import Optional, Union, List, Collection, Tuple, TypeVar
+
+from django.core.handlers.wsgi import WSGIRequest
 from django.http import HttpResponse
+from django.template import Template
+from django.template.typing import TemplateParamType
+from django.typing import OptDict, OptStr, OptInt
 
 from .loader import get_template, select_template
 
@@ -7,11 +13,12 @@ class ContentNotRenderedError(Exception):
     pass
 
 
+
 class SimpleTemplateResponse(HttpResponse):
     rendering_attrs = ['template_name', 'context_data', '_post_render_callbacks']
 
-    def __init__(self, template, context=None, content_type=None, status=None,
-                 charset=None, using=None):
+    def __init__(self, template:TemplateParamType, context:OptDict=None, content_type:OptStr=None, status:OptInt=None,
+                 charset:OptStr =None, using:OptStr=None):
         # It would seem obvious to call these next two members 'template' and
         # 'context', but those names are reserved as part of the test Client
         # API. To avoid the name collision, we use different names.
@@ -57,7 +64,7 @@ class SimpleTemplateResponse(HttpResponse):
 
         return obj_dict
 
-    def resolve_template(self, template):
+    def resolve_template(self, template:TemplateParamType):
         """Accept a template object, path-to-template, or list of paths."""
         if isinstance(template, (list, tuple)):
             return select_template(template, using=self.using)
@@ -139,7 +146,7 @@ class SimpleTemplateResponse(HttpResponse):
 class TemplateResponse(SimpleTemplateResponse):
     rendering_attrs = SimpleTemplateResponse.rendering_attrs + ['_request']
 
-    def __init__(self, request, template, context=None, content_type=None,
-                 status=None, charset=None, using=None):
+    def __init__(self, request:WSGIRequest, template:TemplateParamType, context:OptDict=None, content_type:OptStr=None,
+                 status:OptInt=None, charset:OptStr =None, using:OptStr =None):
         super().__init__(template, context, content_type, status, charset, using)
         self._request = request

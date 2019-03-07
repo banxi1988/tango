@@ -1,10 +1,12 @@
 import functools
 from collections import Counter
 from pathlib import Path
+from typing import List, Optional, Any, Dict
 
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.typing import StrDict
 from django.utils.functional import cached_property
 from django.utils.module_loading import import_string
 
@@ -14,7 +16,7 @@ class InvalidTemplateEngineError(ImproperlyConfigured):
 
 
 class EngineHandler:
-    def __init__(self, templates=None):
+    def __init__(self, templates:Optional[List[StrDict]]=None):
         """
         templates is an optional list of template engine definitions
         (structured like settings.TEMPLATES).
@@ -61,7 +63,7 @@ class EngineHandler:
 
         return templates
 
-    def __getitem__(self, alias):
+    def __getitem__(self, alias:str):
         try:
             return self._engines[alias]
         except KeyError:

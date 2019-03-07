@@ -7,6 +7,7 @@ import sys
 import time
 from email.header import Header
 from http.client import responses
+from typing import ClassVar, Optional, Iterable
 from urllib.parse import quote, urlparse
 
 from django.conf import settings
@@ -33,9 +34,9 @@ class HttpResponseBase:
     Use the HttpResponse and StreamingHttpResponse subclasses instead.
     """
 
-    status_code = 200
+    status_code :ClassVar[int] = 200
 
-    def __init__(self, content_type=None, status=None, reason=None, charset=None):
+    def __init__(self, content_type:Optional[str]=None, status:Optional[int]=None, reason:Optional[str]=None, charset:Optional[str]=None):
         # _headers is a mapping of the lowercase name to the original case of
         # the header (required for working with legacy systems) and the header
         # value. Both the name of the header and its value are ASCII strings.
@@ -61,7 +62,7 @@ class HttpResponseBase:
         self['Content-Type'] = content_type
 
     @property
-    def reason_phrase(self):
+    def reason_phrase(self) -> str:
         if self._reason_phrase is not None:
             return self._reason_phrase
         # Leave self._reason_phrase unset in order to use the default
@@ -69,11 +70,11 @@ class HttpResponseBase:
         return responses.get(self.status_code, 'Unknown Status Code')
 
     @reason_phrase.setter
-    def reason_phrase(self, value):
+    def reason_phrase(self, value:Optional[str]):
         self._reason_phrase = value
 
     @property
-    def charset(self):
+    def charset(self) -> str:
         if self._charset is not None:
             return self._charset
         content_type = self.get('Content-Type', '')
@@ -84,7 +85,7 @@ class HttpResponseBase:
         return settings.DEFAULT_CHARSET
 
     @charset.setter
-    def charset(self, value):
+    def charset(self, value:Optional[str]):
         self._charset = value
 
     def serialize_headers(self):
@@ -104,7 +105,7 @@ class HttpResponseBase:
     def _content_type_for_repr(self):
         return ', "%s"' % self['Content-Type'] if 'Content-Type' in self else ''
 
-    def _convert_to_charset(self, value, charset, mime_encode=False):
+    def _convert_to_charset(self, value, charset, mime_encode=False) -> str:
         """
         Convert headers key/value to ascii/latin-1 native strings.
 
@@ -139,10 +140,10 @@ class HttpResponseBase:
     def __delitem__(self, header):
         self._headers.pop(header.lower(), False)
 
-    def __getitem__(self, header):
+    def __getitem__(self, header) -> str:
         return self._headers[header.lower()][1]
 
-    def has_header(self, header):
+    def has_header(self, header) -> bool:
         """Case-insensitive check for a header."""
         return header.lower() in self._headers
 
@@ -282,7 +283,7 @@ class HttpResponse(HttpResponseBase):
     This content that can be read, appended to, or replaced.
     """
 
-    streaming = False
+    streaming:ClassVar[bool] = False
 
     def __init__(self, content=b'', *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -450,7 +451,7 @@ class FileResponse(StreamingHttpResponse):
 class HttpResponseRedirectBase(HttpResponse):
     allowed_schemes = ['http', 'https', 'ftp']
 
-    def __init__(self, redirect_to, *args, **kwargs):
+    def __init__(self, redirect_to:str, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self['Location'] = iri_to_uri(redirect_to)
         parsed = urlparse(str(redirect_to))
@@ -505,7 +506,7 @@ class HttpResponseForbidden(HttpResponse):
 class HttpResponseNotAllowed(HttpResponse):
     status_code = 405
 
-    def __init__(self, permitted_methods, *args, **kwargs):
+    def __init__(self, permitted_methods:Iterable[str], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self['Allow'] = ', '.join(permitted_methods)
 
