@@ -3,15 +3,20 @@ This module collects helper functions and classes that "span" multiple levels
 of MVC. In other words, these functions/classes introduce controlled coupling
 for convenience's sake.
 """
+from typing import Union, Type
+
+from django.core.handlers.wsgi import WSGIRequest
+from django.db.models import Model, Manager, QuerySet
 from django.http import (
     Http404, HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect,
 )
 from django.template import loader
+from django.typing import Str1N, OptDict, OptStr, OptInt
 from django.urls import NoReverseMatch, reverse
 from django.utils.functional import Promise
 
 
-def render(request, template_name, context=None, content_type=None, status=None, using=None):
+def render(request:WSGIRequest, template_name:Str1N, context:OptDict=None, content_type:OptStr=None, status:OptInt=None, using:OptStr=None):
     """
     Return a HttpResponse whose content is filled with the result of calling
     django.template.loader.render_to_string() with the passed arguments.
@@ -20,7 +25,7 @@ def render(request, template_name, context=None, content_type=None, status=None,
     return HttpResponse(content, content_type, status)
 
 
-def redirect(to, *args, permanent=False, **kwargs):
+def redirect(to:Union[Model,str], *args, permanent:bool=False, **kwargs):
     """
     Return an HttpResponseRedirect to the appropriate URL for the arguments
     passed.
@@ -41,7 +46,9 @@ def redirect(to, *args, permanent=False, **kwargs):
     return redirect_class(resolve_url(to, *args, **kwargs))
 
 
-def _get_queryset(klass):
+ContentDataType = Union[Type[Model],Manager, QuerySet]
+
+def _get_queryset(klass:ContentDataType):
     """
     Return a QuerySet or a Manager.
     Duck typing in action: any class with a `get()` method (for
@@ -54,7 +61,7 @@ def _get_queryset(klass):
     return klass
 
 
-def get_object_or_404(klass, *args, **kwargs):
+def get_object_or_404(klass:ContentDataType, *args, **kwargs):
     """
     Use get() to return an object, or raise a Http404 exception if the object
     does not exist.
@@ -78,7 +85,7 @@ def get_object_or_404(klass, *args, **kwargs):
         raise Http404('No %s matches the given query.' % queryset.model._meta.object_name)
 
 
-def get_list_or_404(klass, *args, **kwargs):
+def get_list_or_404(klass:ContentDataType, *args, **kwargs):
     """
     Use filter() to return a list of objects, or raise a Http404 exception if
     the list is empty.
@@ -99,7 +106,7 @@ def get_list_or_404(klass, *args, **kwargs):
     return obj_list
 
 
-def resolve_url(to, *args, **kwargs):
+def resolve_url(to:Union[Model,str,Promise], *args, **kwargs):
     """
     Return a URL appropriate for the arguments passed.
 
