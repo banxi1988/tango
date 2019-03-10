@@ -3,10 +3,13 @@ import decimal
 import functools
 import hashlib
 import logging
+import numbers
 from time import time
+from typing import Collection, Callable
 
 from django.conf import settings
 from django.db.utils import NotSupportedError
+from django.typing import OptCollection, OptDict, OptInt
 from django.utils.timezone import utc
 
 logger = logging.getLogger('django.db.backends')
@@ -45,7 +48,7 @@ class CursorWrapper:
     # The following methods cannot be implemented in __getattr__, because the
     # code must run when the method is invoked, not just when it is accessed.
 
-    def callproc(self, procname, params=None, kparams=None):
+    def callproc(self, procname:str, params:OptCollection=None, kparams:OptDict=None):
         # Keyword parameters for callproc aren't supported in PEP 249, but the
         # database driver may support them (e.g. cx_Oracle).
         if kparams is not None and not self.db.features.supports_callproc_kwargs:
@@ -63,19 +66,19 @@ class CursorWrapper:
                 params = params or ()
                 return self.cursor.callproc(procname, params, kparams)
 
-    def execute(self, sql, params=None):
+    def execute(self, sql:str, params:OptCollection=None):
         return self._execute_with_wrappers(sql, params, many=False, executor=self._execute)
 
-    def executemany(self, sql, param_list):
+    def executemany(self, sql:str, param_list:Collection):
         return self._execute_with_wrappers(sql, param_list, many=True, executor=self._executemany)
 
-    def _execute_with_wrappers(self, sql, params, many, executor):
+    def _execute_with_wrappers(self, sql:str, params:Collection, many:bool, executor:Callable):
         context = {'connection': self.db, 'cursor': self}
         for wrapper in reversed(self.db.execute_wrappers):
             executor = functools.partial(wrapper, executor)
         return executor(sql, params, many, context)
 
-    def _execute(self, sql, params, *ignored_wrapper_args):
+    def _execute(self, sql:str, params:Collection, *ignored_wrapper_args):
         self.db.validate_no_broken_transaction()
         with self.db.wrap_database_errors:
             if params is None:
@@ -83,7 +86,7 @@ class CursorWrapper:
             else:
                 return self.cursor.execute(sql, params)
 
-    def _executemany(self, sql, param_list, *ignored_wrapper_args):
+    def _executemany(self, sql:str, param_list:Collection, *ignored_wrapper_args):
         self.db.validate_no_broken_transaction()
         with self.db.wrap_database_errors:
             return self.cursor.executemany(sql, param_list)
@@ -93,7 +96,7 @@ class CursorDebugWrapper(CursorWrapper):
 
     # XXX callproc isn't instrumented at this time.
 
-    def execute(self, sql, params=None):
+    def execute(self, sql:str, params:OptCollection=None):
         start = time()
         try:
             return super().execute(sql, params)
@@ -110,7 +113,7 @@ class CursorDebugWrapper(CursorWrapper):
                 extra={'duration': duration, 'sql': sql, 'params': params}
             )
 
-    def executemany(self, sql, param_list):
+    def executemany(self, sql:str, param_list:Collection):
         start = time()
         try:
             return super().executemany(sql, param_list)
@@ -135,11 +138,11 @@ class CursorDebugWrapper(CursorWrapper):
 # Converters from database (string) to Python #
 ###############################################
 
-def typecast_date(s):
+def typecast_date(s:str):
     return datetime.date(*map(int, s.split('-'))) if s else None  # return None if s is null
 
 
-def typecast_time(s):  # does NOT store time zone information
+def typecast_time(s:str):  # does NOT store time zone information
     if not s:
         return None
     hour, minutes, seconds = s.split(':')
@@ -150,7 +153,7 @@ def typecast_time(s):  # does NOT store time zone information
     return datetime.time(int(hour), int(minutes), int(seconds), int((microseconds + '000000')[:6]))
 
 
-def typecast_timestamp(s):  # does NOT store time zone information
+def typecast_timestamp(s:str):  # does NOT store time zone information
     # "2005-07-29 15:48:00.590358-05"
     # "2005-07-29 09:56:00-05"
     if not s:
@@ -182,7 +185,7 @@ def typecast_timestamp(s):  # does NOT store time zone information
 # Converters from Python to database (string) #
 ###############################################
 
-def split_identifier(identifier):
+def split_identifier(identifier:str):
     """
     Split a SQL identifier into a two element tuple of (namespace, name).
 
@@ -196,7 +199,7 @@ def split_identifier(identifier):
     return namespace.strip('"'), name.strip('"')
 
 
-def truncate_name(identifier, length=None, hash_len=4):
+def truncate_name(identifier:str, length:OptInt=None, hash_len=4):
     """
     Shorten a SQL identifier to a repeatable mangled version with the given
     length.
@@ -213,7 +216,7 @@ def truncate_name(identifier, length=None, hash_len=4):
     return '%s%s%s' % ('%s"."' % namespace if namespace else '', name[:length - hash_len], digest)
 
 
-def names_digest(*args, length):
+def names_digest(*args, length:int):
     """
     Generate a 32-bit digest of a set of arguments that can be used to shorten
     identifying names.
@@ -224,7 +227,7 @@ def names_digest(*args, length):
     return h.hexdigest()[:length]
 
 
-def format_number(value, max_digits, decimal_places):
+def format_number(value: decimal.Decimal, max_digits:int, decimal_places:int):
     """
     Format a number into a string with the requisite number of digits and
     decimal places.
@@ -242,7 +245,7 @@ def format_number(value, max_digits, decimal_places):
     return "{:f}".format(value)
 
 
-def strip_quotes(table_name):
+def strip_quotes(table_name:str):
     """
     Strip quotes off of quoted table names to make them safe for use in index
     names, sequence names, etc. For example '"USER"."TABLE"' (an Oracle naming
